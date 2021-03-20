@@ -23,7 +23,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -213,7 +212,7 @@ public final class OpGenerator {
           builder.append("// This class has been generated, DO NOT EDIT!\n\n");
           file.writeTo(builder);
 
-          Files.write(outputFile.toPath(), builder.toString().getBytes(StandardCharsets.UTF_8), StandardOpenOption.WRITE,
+          Files.writeString(outputFile.toPath(), builder.toString(), StandardOpenOption.WRITE,
               StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
         } catch (IOException ioException) {
           throw new IllegalStateException("Failed to write file " + outputFile, ioException);
