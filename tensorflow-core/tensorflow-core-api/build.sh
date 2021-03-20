@@ -96,6 +96,7 @@ $BAZEL_BIN/java_op_exporter \
 
 PROTO_DIR=src/gen/protoc
 
+PROTO_DIR=src/gen/protoc
 # Copy generated Java protos from source jars
 cd $PROTO_DIR
 find $TENSORFLOW_BIN/core -name \*-speed-src.jar -exec jar xf {} \;
