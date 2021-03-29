@@ -607,6 +607,7 @@ final class ClassGenerator {
     if (optionsClass != null) {
       optionsClass.methodSpecs.stream().filter(x -> !x.isConstructor()).forEach(method -> {
         String argName = method.parameters.get(0).name;
+
         builder.addMethod(MethodSpec.methodBuilder(method.name)
             .addParameter(method.parameters.get(0))
             .addJavadoc(method.javadoc)
@@ -623,7 +624,7 @@ final class ClassGenerator {
       builder.addMethod(MethodSpec.methodBuilder(name)
           .addModifiers(Modifier.PUBLIC)
           .returns(resolver.typeOf(output).listIfIterable().javaType)
-          .addJavadoc("$L", argDef.getDescription())
+          .addJavadoc("$L",parseDocumentation( argDef.getDescription()))
           .addCode("return $L;", name)
           .build());
     }
