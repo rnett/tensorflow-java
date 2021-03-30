@@ -39,6 +39,128 @@ import java.util.Set;
  */
 public class CoreJavaDocNodeRenderer extends AbstractVisitor implements NodeRenderer {
 
+  private static final String[] html5Tags = {
+    "<a>",
+    "<abbr>",
+    "<address>",
+    "<area>",
+    "<article>",
+    "<aside>",
+    "<audio>",
+    "<b>",
+    "<base>",
+    "<bdi>",
+    "<bdo>",
+    "<blockquote>",
+    "<body>",
+    "<br>",
+    "<button>",
+    "<canvas>",
+    "<caption>",
+    "<cite>",
+    "<code>",
+    "<col>",
+    "<colgroup>",
+    "<data>",
+    "<datalist>",
+    "<dd>",
+    "<del>",
+    "<details>",
+    "<dfn>",
+    "<dialog>",
+    "<div>",
+    "<dl>",
+    "<dt>",
+    "<em>",
+    "<embed>",
+    "<fieldset>",
+    "<figcaption>",
+    "<figure>",
+    "<footer>",
+    "<form>",
+    "<h1>",
+    "<h2>",
+    "<h3>",
+    "<h4>",
+    "<h5>",
+    "<h6>",
+    "<head>",
+    "<header>",
+    "<hr>",
+    "<html>",
+    "<i>",
+    "<iframe>",
+    "<img>",
+    "<input>",
+    "<ins>",
+    "<kbd>",
+    "<label>",
+    "<legend>",
+    "<li>",
+    "<link>",
+    "<main>",
+    "<map>",
+    "<mark>",
+    "<meta>",
+    "<meter>",
+    "<nav>",
+    "<noscript>",
+    "<object>",
+    "<ol>",
+    "<optgroup>",
+    "<option>",
+    "<output>",
+    "<p>",
+    "<param>",
+    "<picture>",
+    "<pre>",
+    "<progress>",
+    "<q>",
+    "<rp>",
+    "<rt>",
+    "<ruby>",
+    "<s>",
+    "<samp>",
+    "<script>",
+    "<section>",
+    "<select>",
+    "<small>",
+    "<source>",
+    "<span>",
+    "<strong>",
+    "<style>",
+    "<sub>",
+    "<summary>",
+    "<sup>",
+    "<svg>",
+    "<table>",
+    "<tbody>",
+    "<td>",
+    "<template>",
+    "<textarea>",
+    "<tfoot>",
+    "<th>",
+    "<thead>",
+    "<time>",
+    "<title>",
+    "<tr>",
+    "<track>",
+    "<u>",
+    "<ul>",
+    "<var>",
+    "<video>",
+    "<wbr>",
+  };
+  private static final Set<String> allowedHtml5Tags = new HashSet<>(Arrays.asList(html5Tags));
+  private static final Map<String, String> urlLinkConversion =
+      new HashMap<String, String>() {
+        {
+          put("../../../api_docs/python/math_ops", "org.tensorflow.op.MathOps");
+          put(
+              "https://www.tensorflow.org/api_docs/python/tf/tensor_scatter_nd_update",
+              "org.tensorflow.op.Ops#tensorScatterNdUpdate");
+        }
+      };
   protected final JavaDocNodeRendererContext context;
   private final JavaDocWriter writer;
   private boolean firstParagraph;
@@ -74,16 +196,6 @@ public class CoreJavaDocNodeRenderer extends AbstractVisitor implements NodeRend
             HardLineBreak.class));
   }
 
-  private static Map<String, String> urlLinkConversion =
-      new HashMap<String, String>() {
-        {
-          put("../../../api_docs/python/math_ops", "org.tensorflow.op.MathOps");
-          put(
-              "https://www.tensorflow.org/api_docs/python/tf/tensor_scatter_nd_update",
-              "org.tensorflow.op.Ops#tensorScatterNdUpdate");
-        }
-      };
-
   @Override
   public void render(Node node) {
     node.accept(this);
@@ -98,12 +210,11 @@ public class CoreJavaDocNodeRenderer extends AbstractVisitor implements NodeRend
 
   @Override
   public void visit(Heading heading) {
-    String htag = "h" + heading.getLevel();
-    writer.line();
-    writer.tag(htag, getAttrs(heading, htag));
+    // cannot use <h1>, JavaDoc complains.
+    writer.tag("strong");
     visitChildren(heading);
-    writer.tag('/' + htag);
-    writer.line();
+    writer.tag("/strong");
+    writer.tag("br");
   }
 
   @Override
@@ -182,12 +293,12 @@ public class CoreJavaDocNodeRenderer extends AbstractVisitor implements NodeRend
   @Override
   public void visit(IndentedCodeBlock indentedCodeBlock) {
     renderCodeBlock(
-        indentedCodeBlock.getLiteral(), indentedCodeBlock, Collections.<String, String>emptyMap());
+        indentedCodeBlock.getLiteral(), indentedCodeBlock, Collections.emptyMap());
   }
 
   @Override
   public void visit(Link link) {
-    Map<String, String> attrs = new LinkedHashMap<>();
+
     String url = link.getDestination();
 
     if (url.contains("api_docs/python")) {
@@ -198,17 +309,24 @@ public class CoreJavaDocNodeRenderer extends AbstractVisitor implements NodeRend
       if (endIndex == -1) {
         String key = url.substring(startIndex);
         opClass = urlLinkConversion.get(key);
-
+        if (opClass == null) {
+          handleNormalURL(link);
+          return;
+        }
       } else {
         String key = url.substring(startIndex, endIndex);
         opClass = urlLinkConversion.get(key);
+        if (opClass == null) {
+          handleNormalURL(link);
+          return;
+        }
         method = url.substring(endIndex + 1);
         if (method.contains("_")) {
           method = CaseFormat.LOWER_UNDERSCORE.to(CaseFormat.LOWER_CAMEL, method);
         }
         if (Character.isUpperCase(method.charAt(0))) {
           // change method first char to lower_case.
-          char c[] = method.toCharArray();
+          char[] c = method.toCharArray();
           c[0] = Character.toLowerCase(c[0]);
           method = new String(c);
         }
@@ -219,21 +337,27 @@ public class CoreJavaDocNodeRenderer extends AbstractVisitor implements NodeRend
       writer.append(String.format(" {@link %s} ", opClass));
 
     } else {
-      if (context.shouldSanitizeUrls()) {
-        url = context.urlSanitizer().sanitizeLinkUrl(url);
-        attrs.put("rel", "nofollow");
-      }
-      writer.append(" ");
-      url = context.encodeUrl(url);
-      attrs.put("href", url);
-      if (link.getTitle() != null) {
-        attrs.put("title", link.getTitle());
-      }
-      writer.tag("a", getAttrs(link, "a", attrs));
-      visitChildren(link);
-      writer.tag("/a");
-      writer.append(" ");
+      handleNormalURL(link);
     }
+  }
+
+  private void handleNormalURL(Link link) {
+    Map<String, String> attrs = new LinkedHashMap<>();
+    String url = link.getDestination();
+    if (context.shouldSanitizeUrls()) {
+      url = context.urlSanitizer().sanitizeLinkUrl(url);
+      attrs.put("rel", "nofollow");
+    }
+    writer.append(" ");
+    url = context.encodeUrl(url);
+    attrs.put("href", url);
+    if (link.getTitle() != null) {
+      attrs.put("title", link.getTitle());
+    }
+    writer.tag("a", getAttrs(link, "a", attrs));
+    visitChildren(link);
+    writer.tag("/a");
+    writer.append(" ");
   }
 
   @Override
@@ -307,10 +431,16 @@ public class CoreJavaDocNodeRenderer extends AbstractVisitor implements NodeRend
 
   @Override
   public void visit(HtmlInline htmlInline) {
-    if (context.shouldEscapeHtml()) {
-      writer.text(htmlInline.getLiteral());
+    String text = htmlInline.getLiteral();
+    // handle non- JavaDoc html, e.g. <bytes>
+    String tag = text.replace("\\", "");
+    if (!allowedHtml5Tags.contains(tag.toLowerCase())) {
+      text = text.replace("<", "&lt;").replace(">", "&gt;");
+      writer.raw(text);
+    } else if (context.shouldEscapeHtml()) {
+      writer.text(text);
     } else {
-      writer.raw(htmlInline.getLiteral());
+      writer.raw(text);
     }
   }
 
@@ -337,14 +467,17 @@ public class CoreJavaDocNodeRenderer extends AbstractVisitor implements NodeRend
 
   private void renderCodeBlock(String literal, Node node, Map<String, String> attributes) {
     writer.line();
-    writer.tag("pre", getAttrs(node, "pre"));
-    // writer.tag("code", getAttrs(node, "code", attributes));
-    writer.line();
-    writer.text(literal);
-    writer.line();
-    // writer.tag("/code");
-    writer.tag("/pre");
-    writer.line();
+    // skip empty <pre> block
+    if (!literal.isEmpty()) {
+      writer.tag("pre", getAttrs(node, "pre"));
+      // writer.tag("code", getAttrs(node, "code", attributes));
+      writer.line();
+      writer.text(literal);
+      writer.line();
+      // writer.tag("/code");
+      writer.tag("/pre");
+      writer.line();
+    }
   }
 
   private void renderListBlock(
@@ -371,7 +504,7 @@ public class CoreJavaDocNodeRenderer extends AbstractVisitor implements NodeRend
   }
 
   private Map<String, String> getAttrs(Node node, String tagName) {
-    return getAttrs(node, tagName, Collections.<String, String>emptyMap());
+    return getAttrs(node, tagName, Collections.emptyMap());
   }
 
   private Map<String, String> getAttrs(
